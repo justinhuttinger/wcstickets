@@ -569,9 +569,8 @@ app.get('/', async (req, res) => {
     `).join('')}
     
     <div class="refresh-section">
-      <button class="refresh-btn" onclick="location.reload()">↻ Refresh Now</button>
-      <button class="refresh-btn" onclick="location.href='/refresh'" style="margin-left: 10px;">⟳ Force Data Refresh</button>
-      <p class="refresh-note">Data updated: ${lastUpdatedDate.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' })} PST ${fromCache ? '(cached)' : '(fresh)'} • Auto-refreshes every hour</p>
+      <button class="refresh-btn" onclick="location.href='/refresh'">↻ Refresh</button>
+      <p class="refresh-note">Data updated: ${lastUpdatedDate.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' })} PST • Auto-refreshes every hour</p>
     </div>
   </div>
   
