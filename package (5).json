@@ -1,0 +1,12 @@
+{
+  "name": "clickup-time-tracker",
+  "version": "1.0.0",
+  "description": "Track average time in status for ClickUp tasks",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
