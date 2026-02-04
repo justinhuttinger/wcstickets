@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 
-const CLICKUP_API_KEY = process.env.CLICKUP_API_KEY;
+const CLICKUP_API_KEY = process.env.CLICKUP_API_KEY || 'pk_96281769_0QYS1QJP2XT4580M8N76661HH45DPZUP';
 
 // Configure your lists here
 const LISTS = [
@@ -82,7 +82,10 @@ async function getTimeInStatus(taskId) {
     return null;
   }
   
-  return await response.json();
+  const data = await response.json();
+  // DEBUG: Log the actual response structure
+  console.log(`Task ${taskId} time_in_status:`, JSON.stringify(data, null, 2));
+  return data;
 }
 
 // Calculate average time in a specific status for a list
@@ -96,17 +99,40 @@ async function calculateAverageTimeInStatus(listConfig) {
   
   const timesInStatus = [];
   
-  for (const task of tasks) {
+  // Only process first 3 tasks for debugging
+  const tasksToProcess = tasks.slice(0, 3);
+  console.log(`Processing ${tasksToProcess.length} tasks for debugging`);
+  
+  for (const task of tasksToProcess) {
+    console.log(`\nProcessing task: ${task.id} - "${task.name}"`);
     const timeData = await getTimeInStatus(task.id);
     
-    if (timeData && timeData.status_history) {
-      // Find the status we're tracking
-      const statusEntry = Object.values(timeData.status_history).find(
-        s => s.status.toLowerCase() === statusToTrack.toLowerCase()
-      );
+    if (timeData) {
+      console.log('Response keys:', Object.keys(timeData));
       
-      if (statusEntry && statusEntry.total_time && statusEntry.total_time.time) {
-        timesInStatus.push(parseInt(statusEntry.total_time.time));
+      // Try different possible structures
+      if (timeData.status_history) {
+        console.log('Found status_history');
+        const statusEntry = Object.values(timeData.status_history).find(
+          s => s.status && s.status.toLowerCase() === statusToTrack.toLowerCase()
+        );
+        if (statusEntry) {
+          console.log('Found matching status:', statusEntry);
+          if (statusEntry.total_time && statusEntry.total_time.time) {
+            timesInStatus.push(parseInt(statusEntry.total_time.time));
+          }
+        }
+      } else if (timeData.current_status) {
+        console.log('Found current_status structure');
+        // Maybe it's a different structure
+      } else if (Array.isArray(timeData)) {
+        console.log('Response is an array');
+        const statusEntry = timeData.find(
+          s => s.status && s.status.toLowerCase() === statusToTrack.toLowerCase()
+        );
+        if (statusEntry) {
+          console.log('Found matching status in array:', statusEntry);
+        }
       }
     }
     
