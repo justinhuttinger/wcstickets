@@ -679,13 +679,9 @@ app.get('/submit', (req, res) => {
   res.send(html);
 });
 
-// Status page - The dashboard
+// Status page - The dashboard (loads instantly, fetches data via AJAX)
 app.get('/status', async (req, res) => {
-  try {
-    const { results, fromCache, lastUpdated } = await getStatsWithCache();
-    const lastUpdatedDate = new Date(lastUpdated);
-    
-    const html = `
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -885,6 +881,30 @@ app.get('/status', async (req, res) => {
     .back-btn:hover {
       background: #e0e0e0;
     }
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #000000;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      color: #666666;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
@@ -895,77 +915,17 @@ app.get('/status', async (req, res) => {
       <img src="/logo.png" alt="West Coast Strength" class="logo">
       <h1>TICKET STATUS</h1>
     </div>
-    ${results.map(r => `
-      <div class="card">
-        <div class="card-header">
-          <span class="list-name">${r.name}</span>
-        </div>
-        <div class="priority-stats">
-          <div class="priority-stat">
-            <div class="priority-label">Avg Time</div>
-            <div class="priority-value">${r.averageFormatted}</div>
-          </div>
-          <div class="priority-stat">
-            <div class="priority-label">Outstanding</div>
-            <div class="priority-value">${r.outstandingCount}</div>
-          </div>
-        </div>
-        <div class="stats-row">
-          <div class="stat">
-            <div class="stat-label">Tasks Analyzed</div>
-            <div class="stat-value">${r.tasksWithData} / ${r.taskCount}</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">Fastest</div>
-            <div class="stat-value">${r.minFormatted}</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">Slowest</div>
-            <div class="stat-value">${r.maxFormatted}</div>
-          </div>
-        </div>
-        
-        <div class="dropdown-section">
-          <button class="dropdown-toggle" onclick="toggleDropdown('outstanding-${r.name.replace(/\s/g, '')}')">
-            <span>Outstanding Tickets (${r.outstandingTasks.length})</span>
-            <span class="arrow" id="arrow-outstanding-${r.name.replace(/\s/g, '')}">▼</span>
-          </button>
-          <div class="dropdown-content" id="outstanding-${r.name.replace(/\s/g, '')}">
-            ${r.outstandingTasks.length === 0 ? '<div class="dropdown-item">No outstanding tickets</div>' : 
-              r.outstandingTasks.map(t => `
-                <div class="dropdown-item">
-                  <div class="item-name">${t.name}</div>
-                  <div class="item-details">
-                    ${t.customField !== 'N/A' ? `<span>${t.customField}</span> • ` : ''}
-                    <span class="item-time">Waiting: ${t.timeWaiting}</span>
-                  </div>
-                </div>
-              `).join('')}
-          </div>
-          
-          <button class="dropdown-toggle" onclick="toggleDropdown('completed-${r.name.replace(/\s/g, '')}')">
-            <span>Recently Completed (${r.recentlyCompletedTasks.length})</span>
-            <span class="arrow" id="arrow-completed-${r.name.replace(/\s/g, '')}">▼</span>
-          </button>
-          <div class="dropdown-content" id="completed-${r.name.replace(/\s/g, '')}">
-            ${r.recentlyCompletedTasks.length === 0 ? '<div class="dropdown-item">No tickets completed in last 5 days</div>' : 
-              r.recentlyCompletedTasks.map(t => `
-                <div class="dropdown-item">
-                  <div class="item-name">${t.name}</div>
-                  <div class="item-details">
-                    ${t.customField !== 'N/A' ? `<span>${t.customField}</span> • ` : ''}
-                    <span class="item-completed">Completed: ${t.completedDate}</span>
-                  </div>
-                </div>
-              `).join('')}
-          </div>
-        </div>
-      </div>
-    `).join('')}
     
-    <div class="refresh-section">
-      <button class="refresh-btn" onclick="location.href='/refresh'">↻ Refresh</button>
-      <p class="refresh-note">Data updated: ${lastUpdatedDate.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' })} PST • Auto-refreshes every hour</p>
+    <div id="content">
+      <div class="loading-container">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading ticket data...</div>
+      </div>
+    </div>
+    
+    <div id="refresh-section" class="refresh-section" style="display: none;">
+      <button class="refresh-btn" onclick="refreshData()">↻ Refresh</button>
+      <p class="refresh-note" id="refresh-note"></p>
     </div>
   </div>
   
@@ -976,16 +936,132 @@ app.get('/status', async (req, res) => {
       content.classList.toggle('show');
       arrow.classList.toggle('open');
     }
+    
+    function renderData(data) {
+      const content = document.getElementById('content');
+      const refreshSection = document.getElementById('refresh-section');
+      const refreshNote = document.getElementById('refresh-note');
+      
+      let html = '';
+      
+      data.lists.forEach(r => {
+        const listId = r.name.replace(/\\s/g, '');
+        
+        html += \`
+          <div class="card">
+            <div class="card-header">
+              <span class="list-name">\${r.name}</span>
+            </div>
+            <div class="priority-stats">
+              <div class="priority-stat">
+                <div class="priority-label">Avg Time</div>
+                <div class="priority-value">\${r.averageFormatted}</div>
+              </div>
+              <div class="priority-stat">
+                <div class="priority-label">Outstanding</div>
+                <div class="priority-value">\${r.outstandingCount}</div>
+              </div>
+            </div>
+            <div class="stats-row">
+              <div class="stat">
+                <div class="stat-label">Tasks Analyzed</div>
+                <div class="stat-value">\${r.tasksWithData} / \${r.taskCount}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Fastest</div>
+                <div class="stat-value">\${r.minFormatted}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Slowest</div>
+                <div class="stat-value">\${r.maxFormatted}</div>
+              </div>
+            </div>
+            
+            <div class="dropdown-section">
+              <button class="dropdown-toggle" onclick="toggleDropdown('outstanding-\${listId}')">
+                <span>Outstanding Tickets (\${r.outstandingTasks.length})</span>
+                <span class="arrow" id="arrow-outstanding-\${listId}">▼</span>
+              </button>
+              <div class="dropdown-content" id="outstanding-\${listId}">
+                \${r.outstandingTasks.length === 0 ? '<div class="dropdown-item">No outstanding tickets</div>' : 
+                  r.outstandingTasks.map(t => \`
+                    <div class="dropdown-item">
+                      <div class="item-name">\${t.name}</div>
+                      <div class="item-details">
+                        \${t.customField !== 'N/A' ? \`<span>\${t.customField}</span> • \` : ''}
+                        <span class="item-time">Waiting: \${t.timeWaiting}</span>
+                      </div>
+                    </div>
+                  \`).join('')}
+              </div>
+              
+              <button class="dropdown-toggle" onclick="toggleDropdown('completed-\${listId}')">
+                <span>Recently Completed (\${r.recentlyCompletedTasks.length})</span>
+                <span class="arrow" id="arrow-completed-\${listId}">▼</span>
+              </button>
+              <div class="dropdown-content" id="completed-\${listId}">
+                \${r.recentlyCompletedTasks.length === 0 ? '<div class="dropdown-item">No tickets completed in last 5 days</div>' : 
+                  r.recentlyCompletedTasks.map(t => \`
+                    <div class="dropdown-item">
+                      <div class="item-name">\${t.name}</div>
+                      <div class="item-details">
+                        \${t.customField !== 'N/A' ? \`<span>\${t.customField}</span> • \` : ''}
+                        <span class="item-completed">Completed: \${t.completedDate}</span>
+                      </div>
+                    </div>
+                  \`).join('')}
+              </div>
+            </div>
+          </div>
+        \`;
+      });
+      
+      content.innerHTML = html;
+      
+      const updatedDate = new Date(data.updated);
+      refreshNote.textContent = 'Data updated: ' + updatedDate.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'short', timeStyle: 'short' }) + ' PST • Auto-refreshes every hour';
+      refreshSection.style.display = 'block';
+    }
+    
+    function fetchData() {
+      fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+          renderData(data);
+        })
+        .catch(error => {
+          document.getElementById('content').innerHTML = '<div class="card"><p>Error loading data. Please try refreshing.</p></div>';
+          console.error('Error:', error);
+        });
+    }
+    
+    function refreshData() {
+      document.getElementById('content').innerHTML = \`
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <div class="loading-text">Refreshing ticket data...</div>
+        </div>
+      \`;
+      document.getElementById('refresh-section').style.display = 'none';
+      
+      fetch('/api/refresh')
+        .then(response => response.json())
+        .then(data => {
+          renderData(data);
+        })
+        .catch(error => {
+          document.getElementById('content').innerHTML = '<div class="card"><p>Error loading data. Please try refreshing.</p></div>';
+          console.error('Error:', error);
+        });
+    }
+    
+    // Load data when page loads
+    fetchData();
   </script>
 </body>
 </html>
-    `;
-    
-    res.send(html);
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).send(`Error: ${error.message}`);
-  }
+  `;
+  res.send(html);
 });
 
 // Force refresh endpoint - clears cache and redirects to status
@@ -993,6 +1069,23 @@ app.get('/refresh', async (req, res) => {
   cachedResults = null;
   lastFetchTime = null;
   res.redirect('/status');
+});
+
+// API refresh endpoint - clears cache and returns fresh JSON
+app.get('/api/refresh', async (req, res) => {
+  try {
+    cachedResults = null;
+    lastFetchTime = null;
+    const { results, lastUpdated } = await getStatsWithCache();
+    
+    res.json({
+      updated: new Date(lastUpdated).toISOString(),
+      lists: results
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // JSON endpoint
