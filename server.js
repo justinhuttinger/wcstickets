@@ -20,31 +20,31 @@ const LISTS = [
     id: '901112845228',
     name: 'Inventory Addition',
     statusToTrack: 'to do',
-    customFieldName: 'item name'
+    customFieldName: 'Item Name'
   },
   {
     id: '901112845576',
     name: 'New Hire',
     statusToTrack: 'open',
-    customFieldName: 'first name'
+    customFieldName: 'First Name'
   },
   {
-    id: '8chqnub-2591',
+    id: '901112959393',
     name: 'Staff Updates',
     statusToTrack: 'to do',
-    customFieldName: 'first name'
+    customFieldName: 'First Name'
   },
   {
-    id: '8chqnub-2551',
+    id: '901112959189',
     name: 'Offboarding',
     statusToTrack: 'to do',
-    customFieldName: 'first name'
+    customFieldName: 'First Name'
   },
   {
-    id: '8chqnub-2751',
+    id: '901113045232',
     name: 'New Help Center Docs',
     statusToTrack: 'to do',
-    customFieldName: null  // Will just show task name
+    customFieldName: null
   }
 ];
 
