@@ -2,6 +2,15 @@ const express = require('express');
 const path = require('path');
 const app = express();
 
+// CORS - allow reporting dashboard to call API
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 // Serve static files (logo, etc.)
 app.use(express.static(path.join(__dirname)));
 
